@@ -297,30 +297,29 @@ def getMovieValues(movie_id: str):
 
     return values
 
-def check_config(path) -> tuple:
-    if not os.path.exists(path):
-        print("Configuration file not found on your device. This is normal if it's your first time using this application.")
-        #print("Please, enter your Notion integration token: ")
-        TOKEN = input("Please, enter your Notion integration token: ")
-        #print("Enter the Notion table's URL: ")
+def check_config(username: str) -> str:
+    documents = os.path.join(os.environ['USERPROFILE'], 'Documents')
+    movie_tracker = os.path.join(documents, 'Movie_Tracker')
+    if not os.path.exists(movie_tracker):
+        # @TODO: Create Movie_Tracker folder
+    else:
+        config_json = os.path.join(movie_tracker, 'config.json')
+        if not os.path.exists(config_json):
+            # @TODO: Create config.json
+    return config_json
+
+def get_config(path:str) -> tuple:
+    with open(path, "r") as f:
+        config = json.load(f)
+    if "TOKEN" not in config or "DATABASE_ID" not in config:
+        TOKEN = input("There is an error in your configuration file, please, enter your Notion integration token: ")
         DATABASE_ID = input("Enter the Notion table's URL: ")
         config = {"TOKEN": TOKEN, "DATABASE_ID": DATABASE_ID}
         with open(path, "w", encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
-    else: #config exists
-        with open(path, "r") as f:
-            config = json.load(f)
-        if "TOKEN" not in config or "DATABASE_ID" not in config:
-            #print("There is an error in your configuration file, please, enter your Notion integration token: ")
-            TOKEN = input("There is an error in your configuration file, please, enter your Notion integration token: ")
-            #print("Enter the Notion table's URL: ")
-            DATABASE_ID = input("Enter the Notion table's URL: ")
-            config = {"TOKEN": TOKEN, "DATABASE_ID": DATABASE_ID}
-            with open(path, "w", encoding='utf-8') as f:
-                json.dump(config, f, ensure_ascii=False, indent=4)
-        else: #config file properly formed
-            TOKEN = config["TOKEN"]
-            DATABASE_ID = config["DATABASE_ID"]
+    else: #config file properly formed
+        TOKEN = config["TOKEN"]
+        DATABASE_ID = config["DATABASE_ID"]
     return TOKEN, DATABASE_ID
 
 def update_config(path) -> tuple:
@@ -435,9 +434,10 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
 
 def main():
 
-    user = os.getlogin()
-    path = r"C:\Users\{}\Documents\Movie_Tracker\config.json".format(user)
-    TOKEN, DATABASE_ID = check_config(path)
+    #user = os.getlogin()
+    #path = r"C:\Users\{}\Documents\Movie_Tracker\config.json".format(user)
+    path = check_config()
+    TOKEN, DATABASE_ID = get_config(path)
 
     loop = True
     while(loop):
