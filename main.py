@@ -412,7 +412,7 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
             if tag == 'y':
                 values["Tags"] = "Want to see"
             elif tag == 'n':
-                values["Tags"] = "Not yet Released"
+                values["Tags"] = "Not Yet Released"
             else:
                 print("Try again. Enter y for yes or n for no.")
     if seen:
