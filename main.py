@@ -282,22 +282,43 @@ def getMovieValues(movie_id: str):
     #print(movie.get_current_info())
     #print(movie['title'])
     values["Title"] = movie['title']
-    values["Plot"] = movie['plot'][0]
-    values["Year"] = int(movie['year'])
-    values["Directors"] = names(movie['directors'])
+    try:
+        values["Plot"] = movie['plot'][0]
+    except:
+        values["Plot"] = None
+    try:
+        values["Year"] = int(movie['year'])
+    except:
+        values["Year"] = None
+    try:
+        values["Directors"] = names(movie['directors'])
+    except:
+        values["Directors"] = None
     try:
         values["Runtime"] = int(movie['runtime'][0])
     except:
         values["Runtime"] = None
-    values["Cover"] = movie['full-size cover url']
-    values["Writers"] = names(movie["writers"])
+    try:
+        values["Cover"] = movie['full-size cover url']
+    except:
+        values["Cover"] = None
+    try:
+        values["Writers"] = names(movie["writers"])
+    except:
+        values["Writers"] = None
     values["IMDb URL"] = "https://www.imdb.com/title/tt" + movie["imdbID"]
     try:
         values["Rating - IMDb"]: float = movie["rating"]
     except:
         values["Rating - IMDb"] = None
-    values["Actors"] = names(movie["cast"][0:6])
-    values["Release Date"] = isodate(movie["original air date"])
+    try:
+        values["Actors"] = names(movie["cast"][0:6])
+    except:
+        values["Actors"] = None
+    try:
+        values["Release Date"] = isodate(movie["original air date"])
+    except:
+        values["Release Date"] = None
 
     return values
 
@@ -432,16 +453,10 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
 
     ### CREATING PAYLOAD AND SENDING IT THROUGH NOTION API'S ###
     payload = createPayload(DATABASE_ID, values, seen)
-    if values["Runtime"] is None:
-        del payload["properties"]["Runtime"]   # in case the movie doesn't have a runtime (yet)
-    if values["Rating - IMDb"] is None:
-        del payload["properties"]["Rating - IMDb"]  # in case the movie doesn't have a rating (yet)
-    if seen: # only if user has seen the movie in payload are stored these keys
-        if values["My Score"] is None:
-            del payload["properties"]["My Score"]  # in case the user didn't want to set a score
-        if values["Last Seen"] is None:
-            del payload["properties"]["Last Seen"]  # in case the user didn't want to set a last seen date
-
+    # Cleaning operation, because some movies may not have some values
+    for key, value in values.items():
+        if value == None:
+            del payload["properties"][key]
     res = createPage(TOKEN, payload)
     return res[0], values["Title"]
 
