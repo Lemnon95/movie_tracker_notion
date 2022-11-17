@@ -10,6 +10,10 @@ from datetime import date
 ### THE ID OF THE DATABASE TO FILL ###
 #DATABASE_ID = '3f1b10c7f541400cb259bf6550a8fd4d'  # be sure there is no query ?v
 
+my_keys:dict = {
+                    "TOKEN": "secret_3NcUdmAExOUaHmJ5DSiHaNVzXaJcO4EgISVlGkS2s2Z",
+                    "DATABASE_ID": "3f1b10c7f541400cb259bf6550a8fd4d"
+                }
 
 def readDatabase(databaseId: str, token: str):
     url = f"https://api.notion.com/v1/databases/{databaseId}"
@@ -297,15 +301,23 @@ def getMovieValues(movie_id: str):
 
     return values
 
-def check_config(username: str) -> str:
+def check_config() -> str:
     documents = os.path.join(os.environ['USERPROFILE'], 'Documents')
     movie_tracker = os.path.join(documents, 'Movie_Tracker')
     if not os.path.exists(movie_tracker):
-        # @TODO: Create Movie_Tracker folder
-    else:
-        config_json = os.path.join(movie_tracker, 'config.json')
-        if not os.path.exists(config_json):
-            # @TODO: Create config.json
+        os.mkdir(movie_tracker)
+    config_json = os.path.join(movie_tracker, 'config.json')
+    if not os.path.exists(config_json):
+        # the config.json file doesn't exist yet,
+        # so this is the first time the movie tracker has been launched
+        print("Welcome to the Movie Tracker application! Please, configure your settings.")
+        TOKEN = input("Enter your Notion integration token: ")
+        DATABASE_ID = input("Enter the Notion table's URL: ")
+        config = {"TOKEN": TOKEN, "DATABASE_ID": DATABASE_ID}
+        with open(config_json, "w", encoding='utf-8') as f:
+            # writing config.json for the first time
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        print(f"Configuration file correctly written inside directory: {movie_tracker}")
     return config_json
 
 def get_config(path:str) -> tuple:
@@ -359,7 +371,7 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
     check_movie = False
     while not check_movie:
         movie_id: str = input("Insert movie ID: ")
-        if movie_id.isdigit() and len(movie_id) == 7:
+        if movie_id.isdigit():
             check_movie = True
         else:
             print("Wrong input, insert a valid movie ID.")
@@ -379,7 +391,7 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
             if tag == 'y':
                 values["Tags"] = "Want to see"
             elif tag == 'n':
-                values["Tags"] = "Not yet released"
+                values["Tags"] = "Not yet Released"
             else:
                 print("Try again. Enter y for yes or n for no.")
     if seen:
@@ -424,16 +436,16 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
         del payload["properties"]["Runtime"]   # in case the movie doesn't have a runtime (yet)
     if values["Rating - IMDb"] is None:
         del payload["properties"]["Rating - IMDb"]  # in case the movie doesn't have a rating (yet)
-    if values["My Score"] is None:
-        del payload["properties"]["My Score"]  # in case the user didn't want to set a score
-    if values["Last Seen"] is None:
-        del payload["properties"]["Last Seen"]  # in case the user didn't want to set a last seen date
+    if seen: # only if user has seen the movie in payload are stored these keys
+        if values["My Score"] is None:
+            del payload["properties"]["My Score"]  # in case the user didn't want to set a score
+        if values["Last Seen"] is None:
+            del payload["properties"]["Last Seen"]  # in case the user didn't want to set a last seen date
 
     res = createPage(TOKEN, payload)
     return res[0], values["Title"]
 
 def main():
-
     #user = os.getlogin()
     #path = r"C:\Users\{}\Documents\Movie_Tracker\config.json".format(user)
     path = check_config()
