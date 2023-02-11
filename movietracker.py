@@ -446,7 +446,7 @@ def insert_movie(TOKEN, DATABASE_ID) -> (int, str):
 
     print("Sending your request, please wait...")
     ### GETTING VALUES FROM IMDB ###
-    values_ = getMovieValues(movie_id) # @TODO: insert check on return value for error
+    values_ = getMovieValues(movie_id)
     if values_ == 1:
         return 400, f"{movie_id} movie id"
     values = values | values_
