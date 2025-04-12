@@ -1,5 +1,5 @@
 from config import ensure_config_file, load_config, update_config
-from movie_inserter import insert_movie
+from movie_inserter import insert_movie, update_movie
 from menu import print_menu
 
 
@@ -20,9 +20,11 @@ def main():
         elif choice == "2":
             token, database_id = update_config(config_path)
         elif choice == "3":
+            update_movie(token, database_id)
+        elif choice == "4":
             break
         else:
-            print("Invalid option. Choose 1, 2 or 3.")
+            print("Invalid option. Choose 1 to 4.")
 
 
 if __name__ == "__main__":
