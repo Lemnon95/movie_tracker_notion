@@ -1,2 +1,2 @@
-IMDbPY==2022.12.27
+cinemagoer==2022.12.27
 requests==2.27.1
