@@ -2,7 +2,7 @@
 
 **Movie Tracker Notion** is a Python-based console application that lets you track and manage movies in a beautiful [Notion](https://www.notion.so/) database — with metadata automatically fetched from IMDb!
 
-📥 You can download the latest Windows installer from the [Releases Page](https://github.com/YOUR_USERNAME/movie_tracker_notion/releases).
+📥 You can download the latest Windows installer from the [Releases Page](https://github.com/Lemnon95/movie_tracker_notion/releases).
 
 > 🧠 Inspired by the idea of maintaining a centralized movie list that stays updated without manual input.
 
