@@ -1,14 +1,14 @@
-from imdb_utils import get_movie_values
-from notion_api import (
+from movie_tracker.imdb_utils import get_movie_values
+from movie_tracker.notion_api import (
     create_page,
     update_page,
     query_database,
     extract_imdb_id_from_url,
 )
-from helpers import is_float, is_valid_date
+from movie_tracker.helpers import is_float, is_valid_date
 import os
 from datetime import datetime
-from config import CONFIG_DIR
+from movie_tracker.config import CONFIG_DIR
 
 
 def create_payload(database_id: str, values: dict, seen: bool) -> dict:
