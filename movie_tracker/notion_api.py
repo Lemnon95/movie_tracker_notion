@@ -1,5 +1,6 @@
 import requests
 from typing import Dict
+import re
 
 NOTION_VERSION = "2022-06-28"
 
@@ -63,7 +64,11 @@ def update_page(token: str, page_id: str, new_properties: dict):
 
 
 def extract_imdb_id_from_url(url: str) -> str:
-    # Esempio: https://www.imdb.com/title/tt1234567
-    if "tt" in url:
-        return url.split("tt")[-1]
-    return ""
+    """
+    Extracts the IMDb ID (e.g., 'tt1234567') from a given IMDb URL.
+    Raises a ValueError if no valid IMDb ID is found.
+    """
+    match = re.search(r"(tt\d{7,8})", url)
+    if match:
+        return match.group(1)
+    raise ValueError(f"No valid IMDb ID found in URL: {url}")

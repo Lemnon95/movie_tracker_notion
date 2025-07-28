@@ -46,6 +46,7 @@ def create_payload(database_id: str, values: dict, seen: bool) -> dict:
     if seen:
         properties["Last Seen"] = {"date": {"start": values["Last Seen"]}}
         properties["My Score"] = {"type": "number", "number": values["My Score"]}
+
     return {"parent": {"database_id": database_id}, "properties": properties}
 
 
@@ -119,12 +120,23 @@ def update_movie(token: str, database_id: str):
             print(f"\nUpdating ({index}/{total_pages}): '{title}'...")
             log_lines.append(f"Starting update for: {title}")
 
-            imdb_id = extract_imdb_id_from_url(imdb_url)
-            imdb_data = get_movie_values(imdb_id)
+            try:
+                imdb_id = extract_imdb_id_from_url(imdb_url)
+            except ValueError as e:
+                log_lines.append(f"❌ {e}")
+                failed_count += 1
+                continue
+
+            log_lines.append(f"Extracted IMDb ID: {imdb_id}")
+            imdb_numeric_id = imdb_id.replace("tt", "")
+            imdb_data = get_movie_values(imdb_numeric_id)
             if imdb_data == 1:
                 log_lines.append(f"❌ Failed to fetch IMDb data for {title}")
                 failed_count += 1
                 continue
+
+            # Ensure IMDb URL is always the full URL
+            imdb_data["IMDb URL"] = imdb_url
 
             user_tags = []
             if isinstance(props.get("Tags"), dict):

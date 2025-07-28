@@ -1,2 +1,2 @@
-cinemagoer==2022.12.27
+cinemagoer==2023.5.1
 requests==2.27.1
