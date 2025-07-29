@@ -1,10 +1,10 @@
-from imdb import Cinemagoer, IMDbError, Person
+from imdb import Cinemagoer, IMDbError
 from typing import Union
 import requests
 from movie_tracker.helpers import omdb_to_isodate
 
 
-def names(people: list[Person]) -> str:
+def names(people: list) -> str:
     return ", ".join([person.get("name", "") for person in people])
 
 
@@ -68,7 +68,7 @@ def get_movie_values(movie_id: str, omdb_api_key: str) -> Union[dict, int]:
         movie = ia.get_movie(movie_id)
         ia.update(movie)
     except IMDbError as e:
-        return get_movie_values_omdb(movie_id)  # fallback
+        return get_movie_values_omdb(movie_id, omdb_api_key)  # fallback
 
     values["Title"] = movie.get("title")
     values["Plot"] = movie.get("plot", [None])[0]
