@@ -27,11 +27,8 @@ def isodate(date_str: str) -> str:
     return f"{year}-{months[mon]}-{day}"
 
 
-OMDB_API_KEY = "cf1fc34b"
-
-
-def get_movie_values_omdb(imdb_id: str) -> dict:
-    url = f"http://www.omdbapi.com/?i=tt{imdb_id}&apikey={OMDB_API_KEY}&plot=full"
+def get_movie_values_omdb(imdb_id: str, omdb_api_key: str) -> dict:
+    url = f"http://www.omdbapi.com/?i=tt{imdb_id}&apikey={omdb_api_key}&plot=full"
     response = requests.get(url)
     data = response.json()
     if data.get("Response") == "False":
@@ -64,17 +61,15 @@ def get_movie_values_omdb(imdb_id: str) -> dict:
     }
 
 
-def get_movie_values(movie_id: str) -> Union[dict, int]:
+def get_movie_values(movie_id: str, omdb_api_key: str) -> Union[dict, int]:
     values = {}
     ia = Cinemagoer()
     try:
         movie = ia.get_movie(movie_id)
         ia.update(movie)
     except IMDbError as e:
-        print(e)
         return get_movie_values_omdb(movie_id)  # fallback
 
-    print("Available keys:", movie.keys())
     values["Title"] = movie.get("title")
     values["Plot"] = movie.get("plot", [None])[0]
     values["Year"] = movie.get("year")
@@ -93,10 +88,29 @@ def get_movie_values(movie_id: str) -> Union[dict, int]:
         values["Release Date"] = None
 
     # Fallback for None fields using OMDb
-    omdb_values = get_movie_values_omdb(movie_id)
+    omdb_values = get_movie_values_omdb(movie_id, omdb_api_key)
     for key in values:
         if values[key] in (None, "", []):
             values[key] = omdb_values.get(key, values[key])
 
-    print("Movie values fetched successfully: {}", values)
+    cover = omdb_values.get("Cover")
+    values["Cover"] = get_high_res_cover(cover)
+
     return values
+
+
+def get_high_res_cover(cover_url: str) -> str:
+    """
+    Tries to get the highest resolution cover by testing several size tags.
+    Returns the first valid high-res URL found, otherwise returns the original URL.
+    """
+    if cover_url and "SX300" in cover_url:
+        for size in ["SX2000", "SX1500", "SX1200", "SX1000", "SX700", "SX500"]:
+            high_res_url = cover_url.replace("SX300", size)
+            try:
+                response = requests.head(high_res_url, timeout=3)
+                if response.status_code == 200:
+                    return high_res_url
+            except Exception:
+                continue
+    return cover_url

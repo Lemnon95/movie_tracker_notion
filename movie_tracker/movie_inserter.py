@@ -50,7 +50,7 @@ def create_payload(database_id: str, values: dict, seen: bool) -> dict:
     return {"parent": {"database_id": database_id}, "properties": properties}
 
 
-def insert_movie(token: str, database_id: str) -> tuple:
+def insert_movie(token: str, database_id: str, omdb_api_key: str) -> tuple:
     values = {}
     movie_id = input("Insert movie ID: ")
     seen = input("Have you seen the movie? Type 0 for no, 1 for yes: ") == "1"
@@ -67,7 +67,7 @@ def insert_movie(token: str, database_id: str) -> tuple:
         )
         values["Tags"] = "Seen"
 
-    imdb_data = get_movie_values(movie_id)
+    imdb_data = get_movie_values(movie_id, omdb_api_key)
     if imdb_data == 1:
         return 400, f"{movie_id} movie id"
     values.update(imdb_data)
@@ -80,7 +80,7 @@ def insert_movie(token: str, database_id: str) -> tuple:
     return create_page(token, payload)[0], values["Title"]
 
 
-def update_movie(token: str, database_id: str):
+def update_movie(token: str, database_id: str, omdb_api_key: str):
     logs_dir = os.path.join(CONFIG_DIR, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
@@ -129,7 +129,7 @@ def update_movie(token: str, database_id: str):
 
             log_lines.append(f"Extracted IMDb ID: {imdb_id}")
             imdb_numeric_id = imdb_id.replace("tt", "")
-            imdb_data = get_movie_values(imdb_numeric_id)
+            imdb_data = get_movie_values(imdb_numeric_id, omdb_api_key)
             if imdb_data == 1:
                 log_lines.append(f"❌ Failed to fetch IMDb data for {title}")
                 failed_count += 1

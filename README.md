@@ -33,10 +33,22 @@ The first time you run Movie Tracker, it will ask you to enter:
 
 1. **Your Notion integration token**
 2. **The Notion database URL (template-based)**
+3. **Your OMDb API key** (required for fetching movie data and covers)
 
 These values will be saved in a config file located at:
 
 `Documents/Movie_Tracker/config.json`
+
+### 🗝️ How to get your OMDb API key
+
+1. Go to [OMDb API](https://www.omdbapi.com/apikey.aspx)
+2. Request a free API key by entering your email and following the instructions
+3. Once you receive your key, enter it when prompted by Movie Tracker
+
+> **Note:**  
+> Each user must use their own OMDb API key. Do not share your key publicly.
+
+---
 
 ### 🧩 How to get your Notion token
 

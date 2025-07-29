@@ -14,13 +14,13 @@ try:
     def main():
         try:
             config_path = ensure_config_file()
-            token, database_id = load_config(config_path)
+            token, database_id, omdb_api_key = load_config(config_path)
 
             while True:
                 print_menu()
                 choice = input("Enter your choice: ")
                 if choice == "1":
-                    status, title = insert_movie(token, database_id)
+                    status, title = insert_movie(token, database_id, omdb_api_key)
                     print(
                         f"{title} successfully added!"
                         if status == 200
@@ -29,7 +29,7 @@ try:
                 elif choice == "2":
                     token, database_id = update_config(config_path)
                 elif choice == "3":
-                    update_movie(token, database_id)
+                    update_movie(token, database_id, omdb_api_key)
                 elif choice == "4":
                     break
                 else:
