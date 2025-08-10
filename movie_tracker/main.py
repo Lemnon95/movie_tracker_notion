@@ -31,9 +31,49 @@ try:
                 elif choice == "3":
                     update_movie(token, database_id, omdb_api_key)
                 elif choice == "4":
+                    mode = input(
+                        "Recommendations mode: 1) In-Library  2) Discovery (IMDb+OMDb)  [1/2]: "
+                    ).strip()
+                    discovery = mode == "2"
+                    try:
+                        from movie_tracker.recommender.notion_exporter import (
+                            export_movies_df,
+                        )
+                        from movie_tracker.recommender.content_based import recommend
+
+                        df = export_movies_df(token, database_id)
+                        if df.empty:
+                            print("No movies found in your Notion database.")
+                        else:
+                            recs = recommend(
+                                df,
+                                top_k=10,
+                                min_score=7.5,
+                                include_plot=False,
+                                discovery=discovery,
+                                omdb_api_key=omdb_api_key if discovery else "",
+                            )
+                            if recs.empty:
+                                print(
+                                    "No recommendations yet. Add some scores (>= 7.5) to your movies."
+                                )
+                            else:
+                                print("\n🎯 Recommendations:")
+                                for i, row in enumerate(
+                                    recs.itertuples(index=False), start=1
+                                ):
+                                    title = getattr(row, "title")
+                                    sim = getattr(row, "similarity")
+                                    actors = getattr(row, "actors")
+                                    print(f"{i:>2}. {title}  (sim {sim:.3f})")
+                                    if actors:
+                                        print(f"    with: {actors[:120]}")
+                    except Exception as e:
+                        print(f"Failed to generate recommendations: {e}")
+                elif choice == "5":
                     break
                 else:
-                    print("Invalid option. Choose 1 to 4.")
+                    print("Invalid option. Choose 1 to 5.")
         except Exception:
             os.makedirs(CONFIG_DIR, exist_ok=True)
             log_path = os.path.join(CONFIG_DIR, "error_log.txt")
