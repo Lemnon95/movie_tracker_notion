@@ -10,6 +10,10 @@ try:
     )
     from movie_tracker.movie_inserter import insert_movie, update_movie
     from movie_tracker.menu import print_menu
+    from movie_tracker.recommender.notion_exporter import (
+        export_movies_df,
+    )
+    from movie_tracker.recommender.content_based import recommend
 
     def main():
         try:
@@ -36,11 +40,6 @@ try:
                     ).strip()
                     discovery = mode == "2"
                     try:
-                        from movie_tracker.recommender.notion_exporter import (
-                            export_movies_df,
-                        )
-                        from movie_tracker.recommender.content_based import recommend
-
                         df = export_movies_df(token, database_id)
                         if df.empty:
                             print("No movies found in your Notion database.")
