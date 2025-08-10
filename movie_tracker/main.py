@@ -31,7 +31,7 @@ try:
                         else f"Failed to add {title}."
                     )
                 elif choice == "2":
-                    token, database_id = update_config(config_path)
+                    token, database_id, omdb_api_key = update_config(config_path)
                 elif choice == "3":
                     update_movie(token, database_id, omdb_api_key)
                 elif choice == "4":
