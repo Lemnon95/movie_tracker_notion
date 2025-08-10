@@ -18,7 +18,7 @@ try:
     def main():
         try:
             config_path = ensure_config_file()
-            token, database_id, omdb_api_key = load_config(config_path)
+            token, database_id, omdb_api_key, ml_settings = load_config(config_path)
 
             while True:
                 print_menu()
@@ -46,11 +46,12 @@ try:
                         else:
                             recs = recommend(
                                 df,
-                                top_k=10,
+                                top_k=20,
                                 min_score=7.5,
                                 include_plot=False,
                                 discovery=discovery,
                                 omdb_api_key=omdb_api_key if discovery else "",
+                                ml_settings=ml_settings,
                             )
                             if recs.empty:
                                 print(

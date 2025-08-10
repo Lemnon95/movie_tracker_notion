@@ -80,29 +80,53 @@ def build_index(
     min_votes: int = 5000,
     year_from: int = 1970,
     year_to: int = 2100,
+    include_fields: list[str] | None = None,
     force_rebuild: bool = False,
 ) -> dict:
     """
-    Build a light index for discovery:
-    - Keep only titleType == "movie"
-    - Filter by numVotes and year range
-    - Build:
-        * tconst -> {genres, year, rating, votes}
-        * genre  -> set(tconst)
-        * nconst-> set(tconst) for actors and directors separately
-        * name   -> list(nconst) (lowercased) to resolve anchors' names into IDs
+    Build a light IMDb index for discovery, dynamically based on include_fields.
 
-    Returns an index dict and saves it to INDEX_PATH for reuse.
+    - Keeps only titleType == "movie"
+    - Filters by numVotes and year range
+    - Always builds:
+        * tconst_info: tconst -> {title, year, genres(list), rating, votes}
+        * genre_index: genre -> set(tconst)   (if "genres" in include_fields)
+        * actor_index: nconst -> set(tconst)  (if "actors" in include_fields)
+        * director_index: nconst -> set(tconst) (if "directors" in include_fields)
+        * writer_index: nconst -> set(tconst) (if "writers" in include_fields)
+        * name_to_nconst: name(lower) -> list(nconst)  (if any people-field requested)
+        * decade_index: "1990s" -> set(tconst) (if "decade" in include_fields)
+        * language_index / country_index / keyword_index: dict vuoti (placeholder)
     """
-    _ensure_dir(os.path.dirname(INDEX_PATH))
+    import pickle
+    import os
+    import pandas as pd
 
+    # fallback default
+    if include_fields is None:
+        include_fields = ["actors", "directors", "genres", "writers"]
+
+    # --- Cache handling ---
+    _ensure_dir(os.path.dirname(INDEX_PATH))
     if os.path.exists(INDEX_PATH) and not force_rebuild:
-        with open(INDEX_PATH, "rb") as f:
-            return pickle.load(f)
+        try:
+            with open(INDEX_PATH, "rb") as f:
+                cached = pickle.load(f)
+            meta = cached.get("_meta", {})
+            # se i parametri combaciano, riusa la cache
+            if (
+                meta.get("min_votes") == int(min_votes)
+                and meta.get("year_from") == int(year_from)
+                and meta.get("year_to") == int(year_to)
+                and sorted(meta.get("include_fields", [])) == sorted(include_fields)
+            ):
+                return cached
+        except Exception:
+            pass  # cache non valida, si ricostruisce
 
     print("Building IMDb index (first time might take 1–2 minutes)...")
 
-    # basics
+    # --- basics ---
     basics = _read_tsv_gz(
         paths["title_basics"],
         usecols=[
@@ -115,20 +139,22 @@ def build_index(
         ],
     )
     basics = basics[basics["titleType"] == "movie"].copy()
-    # normalize year
     basics["startYear"] = pd.to_numeric(basics["startYear"], errors="coerce")
+
+    # filtri anno
     basics = basics[
         (basics["startYear"].fillna(0) >= year_from)
         & (basics["startYear"].fillna(9999) <= year_to)
     ]
-    # split genres
+
+    # split generi
     basics["genres"] = (
         basics["genres"]
         .fillna("")
         .apply(lambda s: [] if s in ["", "\\N"] else s.split(","))
     )
 
-    # ratings
+    # --- ratings ---
     ratings = _read_tsv_gz(
         paths["title_ratings"], usecols=["tconst", "averageRating", "numVotes"]
     )
@@ -141,7 +167,7 @@ def build_index(
     df["numVotes"] = df["numVotes"].fillna(0).astype(int)
     df = df[df["numVotes"] >= int(min_votes)]
 
-    # indices: tconst info
+    # --- tconst_info ---
     tconst_info = {
         r.tconst: {
             "title": r.primaryTitle,
@@ -153,45 +179,86 @@ def build_index(
         for r in df.itertuples(index=False)
     }
 
-    # genre -> set(tconst)
-    genre_index = {}
-    for tconst, info in tconst_info.items():
-        for g in info["genres"]:
-            genre_index.setdefault(g, set()).add(tconst)
-
-    # principals
-    principals = _read_tsv_gz(
-        paths["title_principals"], usecols=["tconst", "nconst", "category"]
-    )
-    principals = principals[principals["tconst"].isin(tconst_info.keys())]
-
-    actor_index = {}
-    director_index = {}
-    for r in principals.itertuples(index=False):
-        if r.category == "actor" or r.category == "actress":
-            actor_index.setdefault(r.nconst, set()).add(r.tconst)
-        elif r.category == "director":
-            director_index.setdefault(r.nconst, set()).add(r.tconst)
-
-    # names
-    names = _read_tsv_gz(paths["name_basics"], usecols=["nconst", "primaryName"])
-    # normalize
-    names["key"] = names["primaryName"].fillna("").str.lower().str.strip()
-    # name -> list(nconst) (ambiguous names -> multiple ids)
-    name_to_nconst = {}
-    for r in names.itertuples(index=False):
-        if not r.key:
-            continue
-        name_to_nconst.setdefault(r.key, []).append(r.nconst)
-
     index = {
         "tconst_info": tconst_info,
-        "genre_index": genre_index,
-        "actor_index": actor_index,
-        "director_index": director_index,
-        "name_to_nconst": name_to_nconst,
+        "_meta": {
+            "min_votes": int(min_votes),
+            "year_from": int(year_from),
+            "year_to": int(year_to),
+            "include_fields": list(include_fields),
+        },
     }
 
+    # --- Inverted indexes dinamici ---
+
+    # 1) Generi
+    if "genres" in include_fields:
+        genre_index: dict[str, set] = {}
+        for tconst, info in tconst_info.items():
+            for g in info["genres"]:
+                genre_index.setdefault(g, set()).add(tconst)
+        index["genre_index"] = genre_index
+
+    # 2) Persone (actors/directors/writers) -> servono principals + names
+    need_people = any(f in include_fields for f in ("actors", "directors", "writers"))
+    if need_people:
+        principals = _read_tsv_gz(
+            paths["title_principals"], usecols=["tconst", "nconst", "category"]
+        )
+        principals = principals[principals["tconst"].isin(tconst_info.keys())]
+
+        # mappa nome -> nconst (per risolvere gli anchor)
+        names = _read_tsv_gz(paths["name_basics"], usecols=["nconst", "primaryName"])
+        names["key"] = names["primaryName"].fillna("").str.lower().str.strip()
+        name_to_nconst: dict[str, list[str]] = {}
+        for r in names.itertuples(index=False):
+            if not r.key:
+                continue
+            name_to_nconst.setdefault(r.key, []).append(r.nconst)
+        index["name_to_nconst"] = name_to_nconst
+
+        if "actors" in include_fields:
+            actor_index: dict[str, set] = {}
+            sub = principals[principals["category"].isin({"actor", "actress"})]
+            for r in sub.itertuples(index=False):
+                actor_index.setdefault(r.nconst, set()).add(r.tconst)
+            index["actor_index"] = actor_index
+
+        if "directors" in include_fields:
+            director_index: dict[str, set] = {}
+            sub = principals[principals["category"] == "director"]
+            for r in sub.itertuples(index=False):
+                director_index.setdefault(r.nconst, set()).add(r.tconst)
+            index["director_index"] = director_index
+
+        if "writers" in include_fields:
+            writer_index: dict[str, set] = {}
+            sub = principals[principals["category"] == "writer"]
+            for r in sub.itertuples(index=False):
+                writer_index.setdefault(r.nconst, set()).add(r.tconst)
+            index["writer_index"] = writer_index
+
+    # 3) Decade (derivata da year)
+    if "decade" in include_fields:
+        decade_index: dict[str, set] = {}
+        for tconst, info in tconst_info.items():
+            y = info.get("year")
+            if y is None or y < 1800:
+                continue
+            decade = f"{(y // 10) * 10}s"  # "1990s"
+            decade_index.setdefault(decade, set()).add(tconst)
+        index["decade_index"] = decade_index
+
+    # 4) Language / Country / Keywords (placeholder: non presenti nei dump IMDb standard)
+    #    Rimangono indici vuoti per compatibilità con discover_candidates.
+    if "language" in include_fields:
+        index["language_index"] = {}
+    if "country" in include_fields:
+        index["country_index"] = {}
+    if "keywords" in include_fields:
+        index["keyword_index"] = {}
+
+    # --- save cache ---
     with open(INDEX_PATH, "wb") as f:
         pickle.dump(index, f)
 
@@ -231,63 +298,110 @@ def discover_candidates(
     anchors: pd.DataFrame,
     all_notion_imdb_ids: t.Set[str],
     index: dict,
-    top_k: int = 200,
+    ml_settings: dict,
+    top_k: int = None,
 ) -> pd.DataFrame:
     """
     Produce external candidates similar to the given anchor movies.
-    - anchors: DataFrame rows with columns ['imdb_id','actors','directors','genres'] (genres optional)
-    - all_notion_imdb_ids: set of ttids already in Notion (exclude)
-    - index: built by build_index(...)
-    Returns a DataFrame with columns: ['imdb_id','title','year','genres','score','imdb_rating','imdb_votes']
+
+    Parameters
+    ----------
+    anchors : pd.DataFrame
+        Must contain ['imdb_id', plus any fields in include_fields].
+    all_notion_imdb_ids : set
+        Set of IMDb IDs already in Notion (exclude them).
+    index : dict
+        Built by build_index(...)
+    ml_settings : dict
+        From config.json (ML_SETTINGS)
+    top_k : int, optional
+        Number of candidates to return (defaults to discovery.candidate_top_k)
     """
+
     if anchors.empty:
         return pd.DataFrame(columns=["imdb_id", "title"])
 
+    # Load discovery params from config
+    discovery_cfg = ml_settings.get("discovery", {})
+    include_fields = discovery_cfg.get(
+        "include_fields", ["actors", "directors", "writers", "genres"]
+    )
+    weights = ml_settings.get("features", {}).get("weights", {})
+    if top_k is None:
+        top_k = discovery_cfg.get("candidate_top_k", 200)
+
     tconst_info = index["tconst_info"]
-    genre_index = index["genre_index"]
+    genre_index = index.get("genre_index", {})
+    keyword_index = index.get("keyword_index", {})  # If present
+    language_index = index.get("language_index", {})
+    country_index = index.get("country_index", {})
+    decade_index = index.get("decade_index", {})
 
-    # 1) Collect candidate tconsts by people overlap
-    candidates: dict = {}  # tconst -> raw score
+    candidates: dict = {}  # tconst -> score
+
     for r in anchors.itertuples(index=False):
-        actor_names = _normalize_person_names(getattr(r, "actors", "") or "")
-        director_names = _normalize_person_names(getattr(r, "directors", "") or "")
-        anchor_genres = [
-            g.strip() for g in (getattr(r, "genres", "") or "").split(",") if g.strip()
-        ]
+        # --- Process each field dynamically ---
+        for field in include_fields:
+            value = getattr(r, field, "") or ""
+            weight = weights.get(field.rstrip("s"), 1)  # fallback 1
 
-        # directors: weight x3
-        dir_titles = _gather_titles_for_names(director_names, "director", index)
-        for t in dir_titles:
-            candidates[t] = candidates.get(t, 0) + 3
+            if field in ("actors", "directors", "writers"):
+                names = _normalize_person_names(value)
+                role = field[:-1]  # actor/director/writer
+                for name in names:
+                    titles = _gather_titles_for_names([name], role, index)
+                    for t in titles:
+                        candidates[t] = candidates.get(t, 0) + weight
 
-        # actors: weight x2
-        act_titles = _gather_titles_for_names(actor_names, "actor", index)
-        for t in act_titles:
-            candidates[t] = candidates.get(t, 0) + 2
+            elif field == "genres":
+                genres = [g.strip() for g in value.split(",") if g.strip()]
+                for g in genres:
+                    for t in genre_index.get(g, []):
+                        candidates[t] = candidates.get(t, 0) + weight
 
-        # genres: weight x1
-        for g in anchor_genres:
-            for t in genre_index.get(g, []):
-                candidates[t] = candidates.get(t, 0) + 1
+            elif field == "keywords" and keyword_index:
+                kws = [k.strip() for k in value.split(",") if k.strip()]
+                for k in kws:
+                    for t in keyword_index.get(k, []):
+                        candidates[t] = candidates.get(t, 0) + weight
 
-    # 2) Convert to DataFrame and enrich with ratings
+            elif field == "language" and language_index:
+                langs = [l.strip() for l in value.split(",") if l.strip()]
+                for l in langs:
+                    for t in language_index.get(l, []):
+                        candidates[t] = candidates.get(t, 0) + weight
+
+            elif field == "country" and country_index:
+                countries = [c.strip() for c in value.split(",") if c.strip()]
+                for c in countries:
+                    for t in country_index.get(c, []):
+                        candidates[t] = candidates.get(t, 0) + weight
+
+            elif field == "decade" and decade_index:
+                decades = [d.strip() for d in value.split(",") if d.strip()]
+                for d in decades:
+                    for t in decade_index.get(d, []):
+                        candidates[t] = candidates.get(t, 0) + weight
+
+            elif field == "plot":
+                # For plot, maybe no direct index, skip or implement later
+                continue
+
+    # Convert to DataFrame
     rows = []
     for tconst, score in candidates.items():
         info = tconst_info.get(tconst)
-        if not info:
+        if not info or tconst in all_notion_imdb_ids:
             continue
-        imdb_id = tconst  # already like 'tt1234567'
-        if imdb_id in all_notion_imdb_ids:
-            continue  # exclude entries already in Notion
         rows.append(
             {
-                "imdb_id": imdb_id,
+                "imdb_id": tconst,
                 "title": info["title"],
                 "year": info["year"],
-                "genres": ", ".join(info["genres"]),
+                "genres": ", ".join(info.get("genres", [])),
                 "score": score,
-                "imdb_rating": info["rating"],
-                "imdb_votes": info["votes"],
+                "imdb_rating": info.get("rating"),
+                "imdb_votes": info.get("votes"),
             }
         )
 
@@ -295,7 +409,6 @@ def discover_candidates(
         return pd.DataFrame(columns=["imdb_id", "title"])
 
     cand = pd.DataFrame(rows)
-    # 3) final sort: score desc, then rating and votes as tiebreakers
     cand = (
         cand.sort_values(
             by=["score", "imdb_rating", "imdb_votes"],
