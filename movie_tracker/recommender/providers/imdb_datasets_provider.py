@@ -298,127 +298,276 @@ def discover_candidates(
     anchors: pd.DataFrame,
     all_notion_imdb_ids: t.Set[str],
     index: dict,
-    ml_settings: dict,
+    ml_settings: Dict[str, Any],
     top_k: int = None,
 ) -> pd.DataFrame:
     """
-    Produce external candidates similar to the given anchor movies.
-
-    Parameters
-    ----------
-    anchors : pd.DataFrame
-        Must contain ['imdb_id', plus any fields in include_fields].
-    all_notion_imdb_ids : set
-        Set of IMDb IDs already in Notion (exclude them).
-    index : dict
-        Built by build_index(...)
-    ml_settings : dict
-        From config.json (ML_SETTINGS)
-    top_k : int, optional
-        Number of candidates to return (defaults to discovery.candidate_top_k)
+    Discovery con TF-IDF:
+    1) raccoglie candidati via inverted indexes (actors/directors/writers/genres/decade, ecc.)
+    2) costruisce documenti testuali tokenizzati per anchor e candidati
+    3) calcola TF-IDF su (anchors + candidati) e usa la cosine similarity media verso gli anchor come score
+    4) ordina per tfidf_sim (poi rating, votes) e ritorna i top_k
     """
+    import numpy as np
+    import pandas as pd
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
 
     if anchors.empty:
         return pd.DataFrame(columns=["imdb_id", "title"])
 
-    # Load discovery params from config
+    # --- config ---
     discovery_cfg = ml_settings.get("discovery", {})
     include_fields = discovery_cfg.get(
-        "include_fields", ["actors", "directors", "writers", "genres"]
+        "include_fields", ["actors", "directors", "writers", "genres", "decade"]
     )
     weights = ml_settings.get("features", {}).get("weights", {})
+    tfidf_cfg = ml_settings.get(
+        "tfidf",
+        {"ngram_range": [1, 2], "min_df": 2, "max_df": 0.85, "stop_words": "english"},
+    )
     if top_k is None:
-        top_k = discovery_cfg.get("candidate_top_k", 200)
+        top_k = int(discovery_cfg.get("candidate_top_k", 200))
 
+    # --- helpers ---
+    def _resolve_names_to_nconsts(names: list[str]) -> list[str]:
+        # usa la mappa name->nconst; nomi ambigui possono mappare a più nconst (li includiamo tutti)
+        out: list[str] = []
+        name_map = index.get("name_to_nconst", {})
+        for nm in names:
+            key = (nm or "").strip().lower()
+            out.extend(name_map.get(key, []))
+        # dedup preservando ordine
+        seen = set()
+        res = []
+        for x in out:
+            if x not in seen:
+                seen.add(x)
+                res.append(x)
+        return res
+
+    def _split_csv(s: str) -> list[str]:
+        return [x.strip() for x in (s or "").split(",") if x.strip()]
+
+    def _decade_token(year: t.Optional[int]) -> t.Optional[str]:
+        if year is None or year < 1800:
+            return None
+        return f"{(int(year)//10)*10}s"  # "1990s"
+
+    def _repeat(tokens: list[str], w: int) -> list[str]:
+        w = max(1, int(w))
+        # ripetere i token "emula" un peso nel TF (funziona bene con TF-IDF)
+        return [tok for tok in tokens for _ in range(w)]
+
+    # --- 1) raccogli candidati via inverted indexes (come prima, ma generico) ---
     tconst_info = index["tconst_info"]
-    genre_index = index.get("genre_index", {})
-    keyword_index = index.get("keyword_index", {})  # If present
-    language_index = index.get("language_index", {})
-    country_index = index.get("country_index", {})
-    decade_index = index.get("decade_index", {})
 
-    candidates: dict = {}  # tconst -> score
+    # indici disponibili
+    inv = {
+        "genres": index.get("genre_index", {}),
+        "actors": index.get("actor_index", {}),
+        "directors": index.get("director_index", {}),
+        "writers": index.get("writer_index", {}),
+        "decade": index.get("decade_index", {}),
+        "language": index.get("language_index", {}),  # placeholder (vuoto di solito)
+        "country": index.get("country_index", {}),  # placeholder
+        "keywords": index.get("keyword_index", {}),  # placeholder
+    }
 
+    # 1a) seed dei candidati basato su match ponderati
+    raw_scores: dict[str, float] = {}
     for r in anchors.itertuples(index=False):
-        # --- Process each field dynamically ---
+        # per ogni campo richiesto dalla config
         for field in include_fields:
-            value = getattr(r, field, "") or ""
-            weight = weights.get(field.rstrip("s"), 1)  # fallback 1
-
+            w = weights.get(field.rstrip("s"), 1)
             if field in ("actors", "directors", "writers"):
-                names = _normalize_person_names(value)
-                role = field[:-1]  # actor/director/writer
-                for name in names:
-                    titles = _gather_titles_for_names([name], role, index)
-                    for t in titles:
-                        candidates[t] = candidates.get(t, 0) + weight
-
+                names = _split_csv(getattr(r, field, "") or "")
+                nconsts = _resolve_names_to_nconsts(names)
+                idx = inv.get(field, {})
+                for nc in nconsts:
+                    for tconst in idx.get(nc, []):
+                        raw_scores[tconst] = raw_scores.get(tconst, 0.0) + w
             elif field == "genres":
-                genres = [g.strip() for g in value.split(",") if g.strip()]
-                for g in genres:
-                    for t in genre_index.get(g, []):
-                        candidates[t] = candidates.get(t, 0) + weight
-
-            elif field == "keywords" and keyword_index:
-                kws = [k.strip() for k in value.split(",") if k.strip()]
-                for k in kws:
-                    for t in keyword_index.get(k, []):
-                        candidates[t] = candidates.get(t, 0) + weight
-
-            elif field == "language" and language_index:
-                langs = [l.strip() for l in value.split(",") if l.strip()]
-                for l in langs:
-                    for t in language_index.get(l, []):
-                        candidates[t] = candidates.get(t, 0) + weight
-
-            elif field == "country" and country_index:
-                countries = [c.strip() for c in value.split(",") if c.strip()]
-                for c in countries:
-                    for t in country_index.get(c, []):
-                        candidates[t] = candidates.get(t, 0) + weight
-
-            elif field == "decade" and decade_index:
-                decades = [d.strip() for d in value.split(",") if d.strip()]
-                for d in decades:
-                    for t in decade_index.get(d, []):
-                        candidates[t] = candidates.get(t, 0) + weight
-
+                idx = inv["genres"]
+                for g in _split_csv(getattr(r, "genres", "") or ""):
+                    for tconst in idx.get(g, []):
+                        raw_scores[tconst] = raw_scores.get(tconst, 0.0) + w
+            elif field == "decade":
+                dec = _decade_token(getattr(r, "year", None))
+                if dec:
+                    for tconst in inv["decade"].get(dec, []):
+                        raw_scores[tconst] = raw_scores.get(tconst, 0.0) + w
+            elif field in ("language", "country", "keywords"):
+                idx = inv.get(field, {})
+                for v in _split_csv(getattr(r, field, "") or ""):
+                    for tconst in idx.get(v, []):
+                        raw_scores[tconst] = raw_scores.get(tconst, 0.0) + w
             elif field == "plot":
-                # For plot, maybe no direct index, skip or implement later
-                continue
+                # nei dump IMDb non c'è nel discovery: lo useremo dopo l'enrichment
+                pass
 
-    # Convert to DataFrame
+    # rimuovi quelli già nel tuo Notion
+    for seen_id in list(all_notion_imdb_ids):
+        raw_scores.pop(seen_id, None)
+
+    # se non abbiamo nulla, esci
+    if not raw_scores:
+        return pd.DataFrame(columns=["imdb_id", "title"])
+
+    # prendi candidati ordinati per score statico (limita per non esplodere TF-IDF)
+    # es: tieni i primi 200-400 per passare poi al TF-IDF
+    prelim = sorted(raw_scores.items(), key=lambda kv: kv[1], reverse=True)
+    max_seed = max(top_k * 8, 300)  # seed ampio ma ragionevole
+    seed_tconsts = [t for t, _ in prelim[:max_seed]]
+
+    # --- 2) costruisci feature tokens per anchors e candidati ---
+    # per candidati: usiamo nconst per persone, generi e decade dai tconst_info / indici
+    # serve una mappa tconst -> set(nconst) per ciascun ruolo; costruiamola SOLO sul sottoinsieme seed per efficienza
+    def _invert_people_index(
+        field_idx: dict[str, t.Set[str]], wanted_tconsts: t.Set[str]
+    ) -> dict[str, t.Set[str]]:
+        # ritorna: tconst -> set(nconst) (solo per i tconsts di interesse)
+        out: dict[str, t.Set[str]] = {}
+        for nconst, titles in field_idx.items():
+            inter = titles & wanted_tconsts
+            if not inter:
+                continue
+            for tc in inter:
+                out.setdefault(tc, set()).add(nconst)
+        return out
+
+    seed_set = set(seed_tconsts)
+    tconst_actors = (
+        _invert_people_index(inv["actors"], seed_set) if inv["actors"] else {}
+    )
+    tconst_directors = (
+        _invert_people_index(inv["directors"], seed_set) if inv["directors"] else {}
+    )
+    tconst_writers = (
+        _invert_people_index(inv["writers"], seed_set) if inv["writers"] else {}
+    )
+
+    def _candidate_tokens(tconst: str) -> list[str]:
+        info = tconst_info.get(tconst, {})
+        toks: list[str] = []
+
+        if "actors" in include_fields and tconst in tconst_actors:
+            toks += _repeat(
+                [f"actor:{nc}" for nc in sorted(tconst_actors[tconst])],
+                weights.get("actor", 2),
+            )
+
+        if "directors" in include_fields and tconst in tconst_directors:
+            toks += _repeat(
+                [f"director:{nc}" for nc in sorted(tconst_directors[tconst])],
+                weights.get("director", 3),
+            )
+
+        if "writers" in include_fields and tconst in tconst_writers:
+            toks += _repeat(
+                [f"writer:{nc}" for nc in sorted(tconst_writers[tconst])],
+                weights.get("writer", 2),
+            )
+
+        if "genres" in include_fields:
+            for g in info.get("genres", []):
+                toks += _repeat([f"genre:{g}"], weights.get("genre", 1))
+
+        if "decade" in include_fields:
+            dec = _decade_token(info.get("year"))
+            if dec:
+                toks += _repeat([f"decade:{dec}"], weights.get("decade", 1))
+
+        # language/country/keywords non disponibili qui → ignorati
+        return toks
+
+    def _anchor_tokens(row: pd.Series) -> list[str]:
+        toks: list[str] = []
+
+        if "actors" in include_fields:
+            nconsts = _resolve_names_to_nconsts(_split_csv(row.get("actors", "")))
+            toks += _repeat([f"actor:{nc}" for nc in nconsts], weights.get("actor", 2))
+
+        if "directors" in include_fields:
+            nconsts = _resolve_names_to_nconsts(_split_csv(row.get("directors", "")))
+            toks += _repeat(
+                [f"director:{nc}" for nc in nconsts], weights.get("director", 3)
+            )
+
+        if "writers" in include_fields:
+            nconsts = _resolve_names_to_nconsts(_split_csv(row.get("writers", "")))
+            toks += _repeat(
+                [f"writer:{nc}" for nc in nconsts], weights.get("writer", 2)
+            )
+
+        if "genres" in include_fields:
+            for g in _split_csv(row.get("genres", "")):
+                toks += _repeat([f"genre:{g}"], weights.get("genre", 1))
+
+        if "decade" in include_fields:
+            dec = _decade_token(row.get("year"))
+            if dec:
+                toks += _repeat([f"decade:{dec}"], weights.get("decade", 1))
+
+        # language/country/keywords/plot non usati qui (mancano in index)
+        return toks
+
+    # documenti: prima gli anchor, poi i candidati
+    anchor_docs = [
+        " ".join(_anchor_tokens(r._asdict() if hasattr(r, "_asdict") else r))
+        for r in anchors.itertuples(index=False)
+    ]
+    cand_docs = [" ".join(_candidate_tokens(t)) for t in seed_tconsts]
+
+    # --- 3) TF-IDF su (anchors + candidati) ---
+    vec = TfidfVectorizer(
+        ngram_range=tuple(tfidf_cfg.get("ngram_range", [1, 2])),
+        min_df=int(tfidf_cfg.get("min_df", 2)),
+        max_df=float(tfidf_cfg.get("max_df", 0.85)),
+        stop_words=tfidf_cfg.get("stop_words", "english"),
+    )
+    X = vec.fit_transform(anchor_docs + cand_docs)
+    na = len(anchor_docs)
+    Xa = X[:na, :]
+    Xc = X[na:, :]
+
+    sims = cosine_similarity(Xa, Xc)  # (na x nc)
+    mean_sim = sims.mean(axis=0)  # (nc,)
+
+    # --- 4) output DataFrame ordinato ---
     rows = []
-    for tconst, score in candidates.items():
+    for i, tconst in enumerate(seed_tconsts):
         info = tconst_info.get(tconst)
-        if not info or tconst in all_notion_imdb_ids:
+        if not info:
             continue
         rows.append(
             {
                 "imdb_id": tconst,
-                "title": info["title"],
-                "year": info["year"],
+                "title": info.get("title", ""),
+                "year": info.get("year", np.nan),
                 "genres": ", ".join(info.get("genres", [])),
-                "score": score,
-                "imdb_rating": info.get("rating"),
-                "imdb_votes": info.get("votes"),
+                "tfidf_sim": float(mean_sim[i]),
+                "imdb_rating": info.get("rating", np.nan),
+                "imdb_votes": info.get("votes", np.nan),
             }
         )
-
     if not rows:
         return pd.DataFrame(columns=["imdb_id", "title"])
 
     cand = pd.DataFrame(rows)
+
+    # Ordine: TF-IDF sim, poi rating, poi votes
     cand = (
         cand.sort_values(
-            by=["score", "imdb_rating", "imdb_votes"],
+            by=["tfidf_sim", "imdb_rating", "imdb_votes"],
             ascending=[False, False, False],
             kind="mergesort",
         )
         .head(top_k)
         .reset_index(drop=True)
     )
-
+    # per compat: esponiamo anche 'score' = tfidf_sim
+    cand["score"] = cand["tfidf_sim"]
     return cand
 
 
