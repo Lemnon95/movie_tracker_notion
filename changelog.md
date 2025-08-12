@@ -7,6 +7,25 @@ and follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.0] - 2025-08-12
+
+### Added
+- 🤖 **Content-based recommendation system**:  
+  Added a new recommendation feature powered by TF-IDF and configurable weights for directors, actors, genres, and plots.  
+  Recommendations can now be generated in two modes:  
+  1. *In-Library*: suggests movies similar to those in your Notion database.  
+  2. *Discovery*: uses IMDb datasets + OMDb enrichment to suggest new movies outside your library.
+- ⚙️ **Configurable output size and score threshold**:  
+  Introduced new global parameters `top_k` and `min_score` in `ML_SETTINGS` to control the number of recommendations returned and the minimum similarity score required.
+- 🔄 **Auto-upgrading configuration**:  
+  `load_config()` now automatically merges missing keys from `DEFAULT_ML_SETTINGS` into the user's `config.json` without overwriting existing preferences.
+
+### Changed
+- 🛠 Updated Windows installer configuration (`installer.cfg`) to include Pandas, NumPy, SciPy, and scikit-learn, required for the recommendation system.
+- 📦 Bumped installer version to `1.2.0`.
+
+---
+
 ## [1.1.0] - 2025-07-29
 
 > **Note:**  
@@ -34,4 +53,3 @@ and follows [Semantic Versioning](https://semver.org/).
 - 📦 Windows installer generated using Pynsist
 
 ---
-
