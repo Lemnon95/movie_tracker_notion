@@ -124,25 +124,32 @@ def _build_features_series(
     plot_max_words: int,
     weights: Dict[str, int],
 ) -> pd.Series:
-    actors = (
-        df.get("actors", "")
-        .fillna("")
-        .map(_norm_list)
-        .map(lambda xs: _tok("actor", xs))
-    )
-    directors = (
-        df.get("directors", "")
-        .fillna("")
-        .map(_norm_list)
-        .map(lambda xs: _tok("director", xs))
-    )
-    writers = df.get("writers", "").fillna("").map(lambda xs: _tok("writer", xs))
-    genres = (
-        df.get("genres", "")
-        .fillna("")
-        .map(_norm_list)
-        .map(lambda xs: _tok("genre", xs))
-    )
+    # helper: sempre una Series testuale
+    def _s(df: pd.DataFrame, col: str) -> pd.Series:
+        if col in df.columns:
+            return df[col].astype(str).fillna("")
+        return pd.Series([""] * len(df), index=df.index, dtype=str)
+
+    # liste normalizzate per entity fields
+    actors = _s(df, "actors").map(_norm_list).map(lambda xs: _tok("actor", xs))
+    directors = _s(df, "directors").map(_norm_list).map(lambda xs: _tok("director", xs))
+    writers = _s(df, "writers").map(_norm_list).map(lambda xs: _tok("writer", xs))
+    genres = _s(df, "genres").map(_norm_list).map(lambda xs: _tok("genre", xs))
+    plot_s = _s(df, "plot")  # testo grezzo per estrarre token
+
+    def build_row(i: int) -> str:
+        toks: list[str] = []
+        toks += directors.iloc[i] * int(weights.get("director", 3))
+        toks += actors.iloc[i] * int(weights.get("actor", 2))
+        toks += genres.iloc[i] * int(weights.get("genre", 2))
+        toks += writers.iloc[i] * int(weights.get("writer", 1))
+        if use_plot:
+            toks += _extract_plot_tokens(
+                plot_s.iloc[i], max_words=plot_max_words
+            ) * int(max(1, weights.get("plot", 1)))
+        return " ".join(toks) if toks else ""
+
+    return pd.Series((build_row(i) for i in range(len(df))), index=df.index, dtype=str)
 
     def build_row(i: int) -> str:
         toks: list[str] = []
@@ -298,7 +305,11 @@ def _apply_diversity_penalty(
     counts: Dict[str, int] = {}
     adj = df.copy()
     base = adj.get("final_score", adj.get("similarity")).astype(float).values.copy()
-    dirs = adj.get("directors", "").fillna("")
+    dirs = (
+        adj["directors"].astype(str).fillna("")
+        if "directors" in adj.columns
+        else pd.Series([""] * len(adj), index=adj.index, dtype=str)
+    )
 
     for i in range(len(adj)):
         dfield = dirs.iloc[i]
@@ -435,6 +446,24 @@ def recommend(
             ext[col] = pd.to_numeric(ext[col], errors="coerce")
 
         candidate_pool = pd.concat([df, ext], ignore_index=True, sort=False)
+
+    if not discovery:
+        for col in [
+            "actors",
+            "directors",
+            "writers",
+            "genres",
+            "plot",
+            "my_score",
+            "imdb_rating",
+            "year",
+        ]:
+            if col not in candidate_pool.columns:
+                candidate_pool[col] = (
+                    ""
+                    if col in ["actors", "directors", "writers", "genres", "plot"]
+                    else np.nan
+                )
 
     # --- TF-IDF ranking ---
     feat_cfg = S["features"]
