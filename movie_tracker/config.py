@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Tuple, Dict, Any
+from copy import deepcopy
 
 CONFIG_DIR = os.path.join(os.environ["USERPROFILE"], "Documents", "Movie_Tracker")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
@@ -82,6 +83,43 @@ def ensure_config_file() -> str:
     return CONFIG_FILE
 
 
+def _deep_merge_defaults(defaults: dict, user: dict) -> dict:
+    """
+    Merge recursively: take user's values when present, otherwise fill from defaults.
+    Lists and scalars are kept as user provided. Only dicts are merged key-by-key.
+    """
+    if not isinstance(defaults, dict):
+        return deepcopy(user) if user is not None else deepcopy(defaults)
+
+    result = deepcopy(user) if isinstance(user, dict) else {}
+    for k, v in defaults.items():
+        if k in result:
+            if isinstance(v, dict) and isinstance(result[k], dict):
+                result[k] = _deep_merge_defaults(v, result[k])
+            # else: keep user's value as-is
+        else:
+            result[k] = deepcopy(v)
+    return result
+
+
+def _coerce_ml_types(ml: dict) -> dict:
+    """
+    Make sure types are sane (e.g., top_k int, min_score float) even if user wrote strings.
+    """
+    out = deepcopy(ml) if isinstance(ml, dict) else {}
+    try:
+        if "top_k" in out:
+            out["top_k"] = int(out["top_k"])
+    except Exception:
+        pass
+    try:
+        if "min_score" in out:
+            out["min_score"] = float(out["min_score"])
+    except Exception:
+        pass
+    return out
+
+
 def load_config(path: str) -> Tuple[str, str, str, Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -94,16 +132,28 @@ def load_config(path: str) -> Tuple[str, str, str, Dict[str, Any]]:
         token, db_id, omdb_api_key = update_config(path)
         with open(path, "r", encoding="utf-8") as f2:
             cfg2 = json.load(f2)
-        ml_settings = cfg2.get("ML_SETTINGS", DEFAULT_ML_SETTINGS)
-        return token, db_id, omdb_api_key, ml_settings
+        user_ml = cfg2.get("ML_SETTINGS", {})
+        merged_ml = _coerce_ml_types(_deep_merge_defaults(DEFAULT_ML_SETTINGS, user_ml))
+        if user_ml != merged_ml:
+            cfg2["ML_SETTINGS"] = merged_ml
+            with open(path, "w", encoding="utf-8") as f3:
+                json.dump(cfg2, f3, ensure_ascii=False, indent=4)
+        return token, db_id, omdb_api_key, merged_ml
 
     if "ML_SETTINGS" not in config:
-        config["ML_SETTINGS"] = DEFAULT_ML_SETTINGS
+        config["ML_SETTINGS"] = deepcopy(DEFAULT_ML_SETTINGS)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
 
-    ml_settings = config.get("ML_SETTINGS", DEFAULT_ML_SETTINGS)
-    return config["TOKEN"], config["DATABASE_ID"], config["OMDB_API_KEY"], ml_settings
+    user_ml = config.get("ML_SETTINGS", {})
+    merged_ml = _coerce_ml_types(_deep_merge_defaults(DEFAULT_ML_SETTINGS, user_ml))
+
+    if user_ml != merged_ml:
+        config["ML_SETTINGS"] = merged_ml
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+
+    return config["TOKEN"], config["DATABASE_ID"], config["OMDB_API_KEY"], merged_ml
 
 
 def save_config(token: str, db_id: str, omdb_api_key: str):
