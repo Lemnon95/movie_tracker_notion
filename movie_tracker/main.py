@@ -44,10 +44,12 @@ try:
                         if df.empty:
                             print("No movies found in your Notion database.")
                         else:
+                            top_k = ml_settings.get("top_k", 20)
+                            min_score = ml_settings.get("min_score", 7.5)
                             recs = recommend(
                                 df,
-                                top_k=20,
-                                min_score=7.5,
+                                top_k,
+                                min_score,
                                 include_plot=False,
                                 discovery=discovery,
                                 omdb_api_key=omdb_api_key if discovery else "",

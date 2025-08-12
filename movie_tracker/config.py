@@ -6,98 +6,63 @@ CONFIG_DIR = os.path.join(os.environ["USERPROFILE"], "Documents", "Movie_Tracker
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 DEFAULT_ML_SETTINGS = {
+    # Global defaults for recommendation parameters
+    "top_k": 20,  # Default number of recommendations to return
+    "min_score": 7.5,  # Minimum similarity score for a movie to be included
     "features": {
-        # Se True, includiamo anche la trama (da OMDb) nelle feature testuali finali (TF‑IDF)
-        # Aumenta la “tematicità” ma può introdurre rumore se le trame sono generiche.
+        # If True, include the plot (from OMDb) in the final textual features (TF-IDF)
+        # Increases "thematic" relevance but may add noise if plots are too generic.
         "use_plot": True,
-        # Quante parole massimo estrarre dalla trama (per limitare rumore e tempi)
-        # Aumenta se vuoi più semantica di plot; diminuisci se noti drift/rumore.
+        # Maximum number of words to extract from the plot (limits noise and processing time)
         "plot_max_words": 25,
-        # Pesi relativi dei token nelle feature (sia per ranking finale sia per discovery TF‑IDF)
-        # Valori più alti => maggiore importanza di quel segnale.
+        # Relative weights for tokens in the feature space (used in final ranking and discovery TF-IDF)
         "weights": {
-            # Aumenta se vuoi che l’autorevolezza/“firma” del regista guidi le raccomandazioni
-            "director": 3,
-            # Attori in comune: alza se ti interessa seguire cast ricorrenti
-            "actor": 2,
-            # Scrittura/sceneggiatura: utile se ti fidi del “tono” narrativo dello scrittore
-            "writer": 2,
-            # Generi: alza se vuoi raccomandazioni più “tematiche”
-            "genre": 1,
-            # Trama: alza se vuoi più semantica del plot (consigliato insieme a use_plot=True)
-            "plot": 1,
-            # Campi avanzati (se presenti nell’indice o dopo enrichment)
-            "keywords": 1,  # parole-chiave narrative (se le indicizzi)
-            "language": 1,  # lingua originale
-            "country": 1,  # paese di produzione
-            "decade": 1,  # es. "1990s" per affinità di periodo
+            "director": 3,  # Increase if you want the director's "signature" to guide recommendations
+            "actor": 2,  # Increase if you want recurring cast to matter more
+            "writer": 2,  # Narrative tone from the writer
+            "genre": 1,  # Increase for more thematic recommendations
+            "plot": 1,  # Plot semantics (works well with use_plot=True)
+            "keywords": 1,  # Narrative keywords (if indexed)
+            "language": 1,  # Original language
+            "country": 1,  # Country of production
+            "decade": 1,  # E.g., "1990s" for period affinity
         },
     },
     "tfidf": {
-        # N‑gram usati dal TF‑IDF sui testi: (1,2) = unigrams + bigrams
-        # Aumentare a (1,3) può catturare più contesto ma aumenta dimensione e tempi.
-        "ngram_range": [1, 2],
-        # Ignora termini troppo rari (comparsi in meno di min_df documenti).
-        # Alzalo se vuoi ridurre rumore, abbassalo se il dataset è piccolo.
-        "min_df": 2,
-        # Ignora termini troppo comuni (presenti in >85% dei documenti).
-        # Abbassalo se vedi che termini troppo diffusi “appiattiscono” le differenze.
-        "max_df": 0.85,
-        # Stopwords per i testi di trama (gli “entity token” tipo actor:XXXX non sono toccati)
-        "stop_words": "english",
+        "ngram_range": [1, 2],  # (1,2) = unigrams + bigrams
+        "min_df": 2,  # Ignore terms appearing in fewer than min_df docs
+        "max_df": 0.85,  # Ignore terms appearing in >85% of docs
+        "stop_words": "english",  # Stopwords for plot text (entity tokens unaffected)
     },
     "blend": {
-        # Pesi per il punteggio finale: combinazione di similarità TF‑IDF, qualità IMDb e “recency”
-        # w_sim domina la coerenza con i tuoi anchor; abbassalo se vuoi dare più spazio a qualità/novità
-        "w_sim": 0.70,
-        # Quanto contano i rating IMDb (normalizzati circa su [0..1] da 5 a 10)
-        "w_rating": 0.20,
-        # Quanto conta la “recency” (film recenti spinti di più)
-        "w_recency": 0.10,
-        # Costante di decadimento (anni) per la recency: più alto = effetto più dolce/lento
-        "recency_tau_years": 8,
+        "w_sim": 0.70,  # Weight for TF-IDF similarity
+        "w_rating": 0.20,  # Weight for IMDb rating
+        "w_recency": 0.10,  # Weight for recency boost
+        "recency_tau_years": 8,  # Decay constant for recency effect
     },
-    # Penalizzazione per evitare troppe raccomandazioni dello stesso regista
     "diversity": {
-        # Quanti titoli max per lo stesso regista prima di applicare una penalità
-        "max_per_director": 2,
-        # Intensità della penalità (0.15 = -15% di punteggio per gli extra)
-        "penalty": 0.15,
+        "max_per_director": 2,  # Max titles per director before penalty
+        "penalty": 0.15,  # Penalty intensity for extra titles
     },
     "discovery": {
-        # Filtro iniziale sull’indice IMDb: numero minimo di voti
-        # Abbassa per esplorare titoli più di nicchia; alza per restare su film più “solidi”.
-        "min_votes": 5000,
-        # Finestra temporale dei film considerati in discovery
+        "min_votes": 5000,  # Minimum IMDb votes
         "year_from": 1970,
         "year_to": 2100,
-        # Quanti candidati grezzi (pre‑enrichment) tenere dalla discovery
-        # Aumenta per avere più ampiezza, ma il TF‑IDF sarà più lento.
         "candidate_top_k": 200,
-        # Quantile di eleggibilità sullo score di discovery (TF‑IDF preliminare)
-        # 0.60 = tieni il top 40% (più selettivo). Abbassa (es. 0.50/0.40) per includere più titoli nell’enrichment.
         "eligibility_quantile": 0.60,
-        # Filtro qualità prima dell’enrichment OMDb
-        # Abbassa questi valori per aumentare il numero di titoli arricchiti; alzali per pulizia.
         "quality_min_rating": 6.5,
         "quality_min_votes": 2000,
-        # Budget dinamico per quante chiamate OMDb fare:
-        # max( top_k * per_top_k , anchors * per_anchor , min )
-        # Aumenta per_top_k/per_anchor/min per spingere l’arricchimento (più lento).
         "enrich_budget": {"per_top_k": 7, "per_anchor": 5, "min": 30},
-        # Campi da usare nella fase di discovery (matching + TF‑IDF preliminare)
-        # Aggiungi/togli per sperimentare; ricorda che alcuni campi (language/country/keywords)
-        # sono “placeholder” finché non li indicizzi/vai ad arricchirli da altre fonti.
         "include_fields": [
             "actors",
             "directors",
             "writers",
             "genres",
-            "plot",  # in discovery viene ignorato dai dump IMDb standard; usato nel ranking finale dopo OMDb
-            "keywords",  # richiede indicizzazione dedicata se vuoi usarli davvero in discovery
-            "language",  # idem
-            "country",  # idem
-            "decade",  # derivato da year: utile se ti piace una certa “epoca”
+            "plot",
+            "keywords",
+            "language",
+            "country",
+            "decade",
         ],
     },
 }
