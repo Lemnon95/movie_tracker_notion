@@ -39,5 +39,5 @@ def omdb_to_isodate(date_str: str) -> str:
             "Dec": "12",
         }
         return f"{year}-{months[mon]}-{day.zfill(2)}"
-    except Exception:
+    except (KeyError, ValueError):
         return

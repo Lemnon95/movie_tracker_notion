@@ -1,2 +1,2 @@
-cinemagoer==2023.5.1
 requests==2.27.1
+colorama==0.4.6

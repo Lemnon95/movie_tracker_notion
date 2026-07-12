@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=60.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "movie-tracker-notion"
+version = "1.2.0"
+description = "Console application for tracking movies in Notion"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.md" }
+dependencies = [
+    "requests==2.27.1",
+    "colorama==0.4.6",
+]
+
+[project.scripts]
+movie-tracker = "movie_tracker.main:main"
+
+[tool.setuptools.packages.find]
+include = ["movie_tracker*"]
+
+[tool.setuptools.package-data]
+"movie_tracker.assets" = ["*.html", "*.svg", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,6 +1,29 @@
 # 🎬 Movie Tracker Notion
 
-**Movie Tracker Notion** is a Python-based console application that lets you track and manage movies in a beautiful [Notion](https://www.notion.so/) database — with metadata automatically fetched from IMDb!
+**Movie Tracker Notion** is a Python console application that manages a personal
+Notion movie library. Tracker metadata comes primarily from TMDB, while OMDb supplies
+the IMDb rating and completes missing fields. The application does not contain movie
+recommendations, machine learning, AI functionality, or IMDb dataset downloads.
+
+The Notion schema also requires `Metadata Source` (select) and `Metadata Synced At`
+(date). Runtime configuration requires a TMDB API read access token. The explicit
+refresh command uses a configurable age threshold of 150 days by default; it is not
+automatic, so stored records can remain older than six months if the app is not run.
+
+<a href="https://www.themoviedb.org">
+  <img src="movie_tracker/assets/tmdb_logo.svg" alt="TMDB" width="80">
+</a>
+
+This application uses TMDB and the TMDB APIs but is not endorsed, certified, or
+otherwise approved by TMDB. Its bundled API integration is intended for personal,
+non-commercial use. Commercial operators must obtain their own permissions from the
+service providers. This requirement applies to use of their services and does not
+alter the GPL license covering Movie Tracker's source code.
+
+Movie Tracker has no telemetry or author-operated backend. Credentials are stored
+unencrypted in the local `config.json` and API requests go directly to Notion, TMDB,
+and OMDb. Read [Privacy and credentials](PRIVACY.md) and
+[Third-party notices](THIRD_PARTY_NOTICES.md) before use or distribution.
 
 📥 You can download the latest Windows installer from the [Releases Page](https://github.com/Lemnon95/movie_tracker_notion/releases).
 
@@ -33,11 +56,21 @@ The first time you run Movie Tracker, it will ask you to enter:
 
 1. **Your Notion integration token**
 2. **The Notion database URL (template-based)**
-3. **Your OMDb API key** (required for fetching movie data and covers)
+3. **The Notion data source ID** (optional when the database has only one)
+4. **Your OMDb API key** (required for fetching movie data and covers)
+5. **Your TMDB API Read Access Token** (required for primary movie metadata)
+
+The app detects and stores the database's data source automatically when there is only one. If the database contains multiple data sources, copy the intended ID from Notion's **Manage data sources** menu and enter it during configuration.
 
 These values will be saved in a config file located at:
 
 `Documents/Movie_Tracker/config.json`
+
+The file is not encrypted. Use a dedicated Notion integration with access only to
+the Movie Tracker database, keep the file private, and revoke the provider keys if it
+is exposed. Each user creates their own local Notion integration; this personal-use
+workflow does not require OAuth because the token is never received by the project
+author.
 
 ### 🗝️ How to get your OMDb API key
 
@@ -97,3 +130,12 @@ From the root directory, run:
 pynsist installer.cfg
 ```
 The installer will be generated in the `build/nsis` directory.
+
+### Tests
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
+
+GitHub Actions runs the suite on Windows with Python 3.9. A manual `workflow_dispatch` also builds the complete Pynsist/NSIS installer and publishes it as an artifact.

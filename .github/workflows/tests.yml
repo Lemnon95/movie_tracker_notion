@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Run tests
+        run: python -m pytest
+
+  build-installer:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - name: Install Pynsist and NSIS
+        run: |
+          python -m pip install pynsist==2.8
+          choco install nsis --no-progress -y
+      - name: Build Windows installer
+        run: pynsist installer.cfg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: movie-tracker-installer
+          path: build/nsis/*.exe
