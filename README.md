@@ -6,9 +6,11 @@ the IMDb rating and completes missing fields. The application does not contain m
 recommendations, machine learning, AI functionality, or IMDb dataset downloads.
 
 The Notion schema also requires `Metadata Source` (select) and `Metadata Synced At`
-(date). Runtime configuration requires a TMDB API read access token. The explicit
-refresh command uses a configurable age threshold of 150 days by default; it is not
-automatic, so stored records can remain older than six months if the app is not run.
+(date). Runtime configuration requires a TMDB API read access token. At startup,
+the app automatically refreshes TMDB-backed records older than the configured age
+threshold, 150 days by default. A manual refresh command is also available. There
+is no background service: unsuccessful refreshes are reported and remain eligible
+for retry on the next launch. Personal tags, scores, and viewing dates are preserved.
 
 <a href="https://www.themoviedb.org">
   <img src="movie_tracker/assets/tmdb_logo.svg" alt="TMDB" width="80">

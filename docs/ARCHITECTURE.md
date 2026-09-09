@@ -71,6 +71,9 @@ Gli aggiornamenti preservano sempre `Tags`, `My Score` e `Last Seen`.
 4. Se TMDB fallisce, OMDb diventa fallback completo.
 5. Se OMDb fallisce ma TMDB riesce, i dati TMDB vengono mantenuti senza rating IMDb.
 6. Se entrambi falliscono, viene sollevato un errore composto senza credenziali.
+7. Prima di qualsiasi scrittura Notion, il risultato composto deve avere un titolo
+   valido. Un titolo assente, vuoto o `N/A` interrompe inserimento, aggiornamento o
+   refresh senza scrivere proprietà o timestamp di sincronizzazione.
 
 La configurazione immagini TMDB viene letta da `/configuration`; la dimensione poster
 è scelta solo tra quelle annunciate. Il miglioramento della cover tramite richieste
@@ -78,13 +81,31 @@ HEAD resta confinato al provider OMDb.
 
 ## Refresh e persistenza TMDB
 
-Il comando esplicito di refresh seleziona i record con `Metadata Source = TMDB` più
-vecchi della soglia configurata, 150 giorni per default. Mostra il conteggio, richiede
-conferma, continua dopo errori isolati e aggiorna il timestamp soltanto con il PATCH.
+Dopo la configurazione, prima del menu, l'app seleziona i record con
+`Metadata Source = TMDB` più vecchi della soglia configurata, 150 giorni per default,
+e li aggiorna automaticamente senza richiedere conferma. Il comando esplicito dal
+menu conserva la richiesta di conferma. Entrambi i flussi mostrano il conteggio e
+il riepilogo, continuano dopo errori isolati e aggiornano il timestamp soltanto con
+il PATCH riuscito. Se non ci sono record da aggiornare, non contattano TMDB o OMDb.
 
-Il refresh non è automatico. Se l'app non viene eseguita, i dati possono restare in
-Notion oltre sei mesi. La posizione tecnica del dato non modifica gli obblighi dei
-termini TMDB.
+Gli errori dei singoli film vengono scritti nel log di aggiornamento. Un errore
+generale del refresh viene mostrato senza impedire l'accesso al menu. I record non
+aggiornati conservano il timestamp precedente e rimangono candidati al successivo
+avvio o a un nuovo tentativo manuale. Non esiste un servizio in background.
+
+Nel [chiarimento dello staff TMDB](https://www.themoviedb.org/talk/6a54940acc8e2346a5b52b0b#6a5fadcbbf69fe558ed64652)
+riportato dall'autore del progetto il 9 settembre 2026, Travis Bell conferma che,
+per l'app locale e il database Notion personale descritti nella richiesta, è
+accettabile aggiornare o rimuovere i metadati scaduti al successivo avvio. Riconosce
+i limiti di controllo della cache in Notion e non considera necessario un servizio
+sempre attivo per consentire questa persistenza. La fonte di questa annotazione è
+la trascrizione fornita dall'autore; il thread non è stato verificabile direttamente
+durante la revisione.
+
+Il controllo all'avvio allinea il flusso al comportamento descritto nel chiarimento.
+La soglia di 150 giorni è un margine applicativo; la risposta non approva la conservazione
+indefinita senza refresh. Gli interventi sui metadati devono continuare a preservare
+`Tags`, `My Score` e `Last Seen`.
 
 ## Attribuzione e distribuzione
 

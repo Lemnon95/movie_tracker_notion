@@ -43,6 +43,29 @@ try:
     def _print_credits(opener=None) -> bool:
         return show_credits() if opener is None else show_credits(opener=opener)
 
+    def _run_metadata_refresh(
+        token,
+        data_source_id,
+        omdb_api_key,
+        tmdb_api_token,
+        refresh_days,
+        automatic=False,
+    ):
+        if automatic:
+            print("Checking for stale TMDB metadata...")
+        try:
+            refresh_stale_movies(
+                token,
+                data_source_id,
+                omdb_api_key,
+                tmdb_api_token,
+                max_age_days=refresh_days,
+                confirm=None if automatic else input,
+            )
+        except (ValueError, MetadataError, NotionApiError, OSError) as exc:
+            print(f"Unable to refresh TMDB metadata: {exc}")
+            print("You can retry using menu option 4 or restart the application.")
+
     def main():
         try:
             config_path = ensure_config_file()
@@ -54,6 +77,15 @@ try:
                 tmdb_api_token,
                 refresh_days,
             ) = _load_runtime_config(config_path)
+
+            _run_metadata_refresh(
+                token,
+                data_source_id,
+                omdb_api_key,
+                tmdb_api_token,
+                refresh_days,
+                automatic=True,
+            )
 
             while True:
                 print_menu()
@@ -96,12 +128,12 @@ try:
                     except (ValueError, MetadataError, NotionApiError) as exc:
                         print(f"Unable to update movies: {exc}")
                 elif choice == "4":
-                    refresh_stale_movies(
+                    _run_metadata_refresh(
                         token,
                         data_source_id,
                         omdb_api_key,
                         tmdb_api_token,
-                        max_age_days=refresh_days,
+                        refresh_days,
                     )
                 elif choice == "5":
                     _print_credits()

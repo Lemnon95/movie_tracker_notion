@@ -33,6 +33,29 @@ class FakeHttp:
         return response
 
 
+@pytest.mark.parametrize(
+    "imdb_input",
+    [
+        "21285562 ",
+        " tt21285562\t",
+        " https://www.imdb.com/title/tt21285562/ ",
+    ],
+)
+def test_omdb_normalizes_pasted_id_before_request(imdb_input):
+    http = FakeHttp([{"Response": "True", "Title": "Example movie"}])
+
+    result = OmdbProvider("test-key", http).get_by_imdb_id(imdb_input)
+
+    assert http.calls == [
+        (
+            "https://www.omdbapi.com/",
+            {"params": {"i": "tt21285562", "apikey": "test-key", "plot": "full"}},
+        )
+    ]
+    assert result.title == "Example movie"
+    assert result.imdb_url == "https://www.imdb.com/title/tt21285562"
+
+
 def test_tmdb_maps_find_details_credits_and_dynamic_poster():
     http = FakeHttp(
         [

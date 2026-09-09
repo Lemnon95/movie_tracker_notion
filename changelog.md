@@ -13,6 +13,8 @@ and follows [Semantic Versioning](https://semver.org/).
 - TMDB as the primary metadata provider, with OMDb rating and fallback support.
 - Metadata source and synchronization timestamp fields in Notion.
 - A manual command to refresh stale TMDB-backed records.
+- Automatic refresh of stale TMDB-backed records at startup, with failure reporting
+  and continued access to the menu.
 - TMDB attribution and local Credits page.
 - Privacy, credential-storage, revocation, and third-party service notices.
 - Bounded HTTP 429 retries that honor the provider's `Retry-After` response.
@@ -20,6 +22,10 @@ and follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - The application is scoped to personal, non-commercial movie tracking.
 - Each user supplies their own Notion, TMDB, and OMDb credentials locally.
+
+### Fixed
+- Reject missing or invalid movie titles before inserts, updates, or metadata
+  refreshes can write to Notion.
 
 ### Removed
 - All ranking, discovery, dataset-download, and predictive functionality and their

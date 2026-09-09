@@ -99,6 +99,14 @@ def _metadata_values(
 ) -> dict:
     service = service or _build_metadata_service(omdb_api_key, tmdb_api_token)
     metadata = service.get_by_imdb_id(imdb_id)
+    # Validate the combined result so OMDb can still complete a missing TMDB title.
+    title = metadata.title
+    if (
+        not isinstance(title, str)
+        or not title.strip()
+        or title.strip().upper() == "N/A"
+    ):
+        raise MetadataError("Movie metadata has no valid title; no changes were saved.")
     values = metadata.to_notion_values()
     values["Metadata Source"] = metadata.primary_source
     values["Metadata Synced At"] = service.synced_at()
@@ -288,10 +296,16 @@ def refresh_stale_movies(
     max_age_days: int = 150,
     confirm=input,
 ) -> tuple:
+    """Refresh stale records; ``confirm=None`` runs without a prompt at startup."""
     pages = query_database(token, data_source_id)
     stale = [page for page in pages if is_stale_tmdb_page(page, max_age_days)]
     print("{} stale TMDB record(s) found.".format(len(stale)))
-    if not stale or confirm("Refresh them now? y/n: ").strip().lower() != "y":
+    if not stale:
+        return 0, 0
+    if (
+        confirm is not None
+        and confirm("Refresh them now? y/n: ").strip().lower() != "y"
+    ):
         return 0, 0
     updated = failed = 0
     log_lines = [
@@ -340,6 +354,10 @@ def refresh_stale_movies(
         except (MetadataError, NotionApiError, ValueError) as exc:
             failed += 1
             log_lines.append("Failed {}: {}".format(page.get("id", "unknown"), exc))
-    log_lines.append("Summary: Updated {}, Failed {}.".format(updated, failed))
-    _append_update_log(os.path.join(CONFIG_DIR, "logs"), log_lines)
+    summary = "Summary: Updated {}, Failed {}.".format(updated, failed)
+    log_lines.append(summary)
+    log_path = _append_update_log(os.path.join(CONFIG_DIR, "logs"), log_lines)
+    print(summary)
+    if failed:
+        print("Some movies could not be refreshed. Details: " + log_path)
     return updated, failed
