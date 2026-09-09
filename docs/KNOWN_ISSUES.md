@@ -5,11 +5,12 @@ al tracking personale Notion con metadati TMDB e completamento OMDb.
 
 ## Installazioni legacy con la stessa versione dichiarata
 
-Una vecchia installazione Windows e il checkout TMDB possono entrambi dichiarare
-`1.2.0`. Per distinguerli, verificare il percorso del collegamento e i moduli
+Una vecchia installazione Windows e le prime build del checkout TMDB dichiaravano
+entrambe `1.2.0`. Per distinguerle, verificare il percorso del collegamento e i moduli
 installati: `imdb_utils.py` con Cinemagoer identifica il codice legacy; la cartella
 `metadata/` identifica il nuovo flusso. Il numero mostrato dall'installer da solo
-non basta. Prima della prossima distribuzione assegnare una versione distinta.
+non basta. La build corrente usa `1.3.0` in package e installer e mostra il numero
+anche nel menu.
 
 Nella diagnosi del 9 settembre 2026, un IMDb ID numerico incollato con uno spazio
 finale causava la risposta OMDb `Incorrect IMDb ID.`. Il codice legacy proseguiva

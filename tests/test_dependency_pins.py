@@ -1,6 +1,8 @@
 from configparser import ConfigParser
 from pathlib import Path
 
+from movie_tracker import __version__
+
 try:
     import tomllib
 except ImportError:
@@ -53,7 +55,13 @@ def test_project_metadata_dependencies_match_requirements():
     metadata_pins = dict(item.split("==", 1) for item in project["dependencies"])
 
     assert metadata_pins == _read_requirements_pins()
-    assert project["version"] == "1.2.0"
+    installer = ConfigParser()
+    installer.read(ROOT / "installer.cfg", encoding="utf-8")
+    assert project["version"] == installer["Application"]["version"] == __version__
+    assert (
+        installer["Build"]["installer_name"]
+        == f"movietracker_{__version__}_installer.exe"
+    )
 
 
 def test_installer_contains_requests_transitive_dependency_and_credits_assets():

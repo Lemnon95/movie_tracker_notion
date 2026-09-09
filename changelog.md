@@ -9,6 +9,10 @@ and follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.3.0] - 2026-09-09
+
 ### Added
 - TMDB as the primary metadata provider, with OMDb rating and fallback support.
 - Metadata source and synchronization timestamp fields in Notion.
@@ -22,6 +26,8 @@ and follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - The application is scoped to personal, non-commercial movie tracking.
 - Each user supplies their own Notion, TMDB, and OMDb credentials locally.
+- The menu displays the application version; version 1.3.0 distinguishes the TMDB
+  build from legacy installations labelled 1.2.0.
 
 ### Fixed
 - Reject missing or invalid movie titles before inserts, updates, or metadata

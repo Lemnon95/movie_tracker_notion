@@ -1,10 +1,12 @@
 from colorama import Fore, Style, init
 
+from movie_tracker import __version__
+
 
 def print_menu():
     init(autoreset=True)
 
-    print(f"\n{Fore.CYAN}{Style.BRIGHT}Movie Tracker Menu")
+    print(f"\n{Fore.CYAN}{Style.BRIGHT}Movie Tracker {__version__} Menu")
     print(f"{Fore.CYAN}{'─' * 30}")
 
     menu_items = [
