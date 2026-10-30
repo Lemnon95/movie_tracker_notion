@@ -11,6 +11,16 @@ and follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.1] - 2026-10-30
+
+### Fixed
+- Prefer Italian distribution dates from TMDB for `Release Date`, prioritizing
+  theatrical releases and excluding festival premieres. Fall back to the primary
+  release date when no valid Italian distribution date is available.
+- Keep the original movie year independent of a later Italian release date.
+
+---
+
 ## [1.3.0] - 2026-09-09
 
 ### Added

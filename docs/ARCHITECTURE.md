@@ -75,6 +75,14 @@ Gli aggiornamenti preservano sempre `Tags`, `My Score` e `Last Seen`.
    valido. Un titolo assente, vuoto o `N/A` interrompe inserimento, aggiornamento o
    refresh senza scrivere proprietà o timestamp di sincronizzazione.
 
+La data `Release Date` privilegia la distribuzione italiana restituita da TMDB con
+`append_to_response=credits,release_dates`: cinema (tipo 3), cinema limitato (2),
+digitale (4), supporto fisico (5), TV (6), in questo ordine. Per ogni tipo viene
+scelta la prima data valida; le premiere (1) sono escluse. In assenza di una data
+italiana utilizzabile viene mantenuta la data principale TMDB, con il consueto
+completamento OMDb se anche questa manca. `Year` resta derivato dalla data principale
+TMDB, indipendentemente da eventuali uscite italiane in anni successivi.
+
 La configurazione immagini TMDB viene letta da `/configuration`; la dimensione poster
 è scelta solo tra quelle annunciate. Il miglioramento della cover tramite richieste
 HEAD resta confinato al provider OMDb.

@@ -43,6 +43,44 @@ def _dedupe_names(
     return result
 
 
+def _parse_release_date(value: Any) -> Optional[str]:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date().isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+def _italian_release_date(data: Any) -> Optional[str]:
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        return None
+    dates: Dict[int, List[str]] = {}
+    for country in data["results"]:
+        if not isinstance(country, dict) or country.get("iso_3166_1") != "IT":
+            continue
+        releases = country.get("release_dates")
+        if not isinstance(releases, list):
+            continue
+        for release in releases:
+            if not isinstance(release, dict):
+                continue
+            release_type = release.get("type")
+            if type(release_type) is not int or release_type not in (2, 3, 4, 5, 6):
+                continue
+            value = release.get("release_date")
+            # TMDB encodes calendar release dates as midnight UTC timestamps.
+            date = _parse_release_date(
+                value.split("T", 1)[0] if isinstance(value, str) else value
+            )
+            if date:
+                dates.setdefault(release_type, []).append(date)
+    # Prefer general theatrical distribution over limited runs or home releases.
+    # Premieres (type 1) are not public distribution dates.
+    for release_type in (3, 2, 4, 5, 6):
+        if dates.get(release_type):
+            return min(dates[release_type])
+    return None
+
+
 class TmdbProvider:
     BASE_URL = "https://api.themoviedb.org/3"
     POSTER_PREFERENCE = ["w780", "w500", "w342", "w300", "original"]
@@ -128,15 +166,17 @@ class TmdbProvider:
         tmdb_id = first_result.get("id")
         if not isinstance(tmdb_id, int) or isinstance(tmdb_id, bool) or tmdb_id <= 0:
             raise MetadataApiError("TMDB find result has no valid movie ID")
-        details = self._get("/movie/" + str(tmdb_id), {"append_to_response": "credits"})
+        details = self._get(
+            "/movie/" + str(tmdb_id),
+            {"append_to_response": "credits,release_dates"},
+        )
         credits = (
             details.get("credits") if isinstance(details.get("credits"), dict) else {}
         )
-        date_text = details.get("release_date")
-        try:
-            release_date = datetime.strptime(date_text, "%Y-%m-%d").date().isoformat()
-        except (TypeError, ValueError):
-            release_date = None
+        primary_date = _parse_release_date(details.get("release_date"))
+        release_date = (
+            _italian_release_date(details.get("release_dates")) or primary_date
+        )
         runtime = details.get("runtime")
         runtime = (
             runtime
@@ -153,7 +193,7 @@ class TmdbProvider:
         metadata = MovieMetadata(
             title=title.strip() if isinstance(title, str) and title.strip() else None,
             plot=overview,
-            year=int(release_date[:4]) if release_date else None,
+            year=int(primary_date[:4]) if primary_date else None,
             runtime_min=runtime,
             actors=_dedupe_names(credits.get("cast", []), limit=6),
             directors=_dedupe_names(credits.get("crew", []), {"Director"}),

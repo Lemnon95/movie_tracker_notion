@@ -9,7 +9,7 @@ Una vecchia installazione Windows e le prime build del checkout TMDB dichiaravan
 entrambe `1.2.0`. Per distinguerle, verificare il percorso del collegamento e i moduli
 installati: `imdb_utils.py` con Cinemagoer identifica il codice legacy; la cartella
 `metadata/` identifica il nuovo flusso. Il numero mostrato dall'installer da solo
-non basta. La build corrente usa `1.3.0` in package e installer e mostra il numero
+non basta. La build corrente usa `1.3.1` in package e installer e mostra il numero
 anche nel menu.
 
 Nella diagnosi del 9 settembre 2026, un IMDb ID numerico incollato con uno spazio
@@ -27,6 +27,24 @@ e i test offline della riparazione sono conservati nella cartella runtime
 migrazione a TMDB: per quest'ultima servono il token TMDB e le proprietà Notion
 `Metadata Source` (select) e `Metadata Synced At` (date). Le schede incomplete già
 create richiedono una verifica separata, soprattutto se duplicate.
+
+## Data di uscita italiana
+
+Il provider TMDB usava soltanto la data principale del film: `Release Date` poteva
+quindi differire dall'uscita italiana. Il checkout ora seleziona le date italiane
+di distribuzione secondo la priorità documentata in `ARCHITECTURE.md`, conservando
+l'anno originale. La correzione si applica agli inserimenti e agli aggiornamenti
+eseguiti con questo codice; le schede esistenti richiedono un aggiornamento dei
+metadati e un installer precedente deve essere ricostruito per includerla.
+
+Il 30 ottobre 2026 la correzione è stata applicata anche al solo provider TMDB
+dell'installazione locale `AppData/Local/Programs/Movie Tracker/pkgs/movie_tracker`,
+con backup in `Documents/Movie_Tracker/repairs/<timestamp>-italian-release-date/`.
+La diagnosi live di Hope (`tt27369017`, TMDB `1058424`) ha confermato data principale
+`2026-07-15`, premiere italiana `2026-10-23` e distribuzione italiana al cinema
+`2026-11-05`. La sola proprietà `Release Date` della scheda è stata corretta a
+`2026-11-05`; una reinstallazione da un installer precedente può sovrascrivere
+la riparazione locale.
 
 ## Punti aperti
 

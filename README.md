@@ -30,6 +30,8 @@ and OMDb. Read [Privacy and credentials](PRIVACY.md) and
 📥 **[Download Movie Tracker 1.3.0 for Windows (64-bit)](https://github.com/Lemnon95/movie_tracker_notion/releases/download/1.3.0/movietracker_1.3.0_installer.exe)**
 
 The installer includes Python; a separate Python installation is not required.
+The source version is **1.3.1**, which fixes Italian release date selection.
+The download above remains the published 1.3.0 release until 1.3.1 is published.
 See the [1.3.0 release notes and checksum](https://github.com/Lemnon95/movie_tracker_notion/releases/tag/1.3.0)
 or browse [all releases](https://github.com/Lemnon95/movie_tracker_notion/releases).
 
@@ -145,11 +147,11 @@ You can always edit or reset the configuration via the app’s menu.
 
 1. Close Movie Tracker and keep a backup of `Documents/Movie_Tracker/config.json`.
 2. For legacy installations, uninstall the old application to remove unused
-   dependencies, then run the 1.3.0 installer.
+   dependencies, then run the newly built 1.3.1 installer.
 3. Add the two metadata properties listed above to your existing Notion database
    if they are missing.
 4. Launch Movie Tracker and enter your TMDB API Read Access Token if requested.
-   The menu displays **Movie Tracker 1.3.0** so you can confirm which version is running.
+   The menu displays **Movie Tracker 1.3.1** so you can confirm which version is running.
 5. Use **Update movie(s) with latest metadata** to update records created by older
    versions and populate their metadata source and synchronization date.
 
