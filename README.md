@@ -27,12 +27,11 @@ unencrypted in the local `config.json` and API requests go directly to Notion, T
 and OMDb. Read [Privacy and credentials](PRIVACY.md) and
 [Third-party notices](THIRD_PARTY_NOTICES.md) before use or distribution.
 
-📥 **[Download Movie Tracker 1.3.0 for Windows (64-bit)](https://github.com/Lemnon95/movie_tracker_notion/releases/download/1.3.0/movietracker_1.3.0_installer.exe)**
+📥 **[Download Movie Tracker 1.3.1 for Windows (64-bit)](https://github.com/Lemnon95/movie_tracker_notion/releases/download/1.3.1/movietracker_1.3.1_installer.exe)**
 
 The installer includes Python; a separate Python installation is not required.
-The source version is **1.3.1**, which fixes Italian release date selection.
-The download above remains the published 1.3.0 release until 1.3.1 is published.
-See the [1.3.0 release notes and checksum](https://github.com/Lemnon95/movie_tracker_notion/releases/tag/1.3.0)
+Version **1.3.1** fixes Italian release date selection.
+See the [1.3.1 release notes and checksum](https://github.com/Lemnon95/movie_tracker_notion/releases/tag/1.3.1)
 or browse [all releases](https://github.com/Lemnon95/movie_tracker_notion/releases).
 
 ---
